@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.PropertyValue;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.BeanReference;
 
 public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFactory {
     public InstantiationStrategy instantiationStrategy = new CglibSubclassingInstantiationStrategy();
@@ -28,7 +29,11 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         for (PropertyValue propertyValue : propertyValues) {
             String name = propertyValue.getName();
             Object value = propertyValue.getValue();
-
+            // 注入依赖bean
+            if (value instanceof BeanReference) {
+                BeanReference beanReference = (BeanReference) value;
+                value = getBean(beanReference.getBeanName());
+            }
             // 使用反射添加属性
             BeanUtil.setFieldValue(bean, name, value);
         }
