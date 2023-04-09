@@ -29,7 +29,7 @@
 5. 推送
 
    ```cobol
-   git push 分支名称
+   git push --set-upstream origin  分支名称
    got push(主分支)
    ```
 
