@@ -327,3 +327,70 @@ public class HelloService {
 }
 ```
 
+## [Bean实例化策略InstantiationStrategy](#Bean实例化策略InstantiationStrategy)
+
+> 代码分支：instantiation-strategy
+
+现在bean是在AbstractAutowireCapableBeanFactory.doCreateBean方法中用beanClass.newInstance()来实例化，仅适用于bean有无参构造函数的情况。
+
+![201643](./img/201643.jpg)
+
+- InstantiationStrategy接口：有一个实例化bean的成员方法
+
+  ```java
+  public interface InstantiationStrategy {
+      Object instantiate(BeanDefinition beanDefinition) throws BeansException;
+  }
+  ```
+
+针对bean的实例化，抽象出一个实例化策略的接口InstantiationStrategy，有两个实现类：
+
+- SimpleInstantiationStrategy，使用bean的构造函数来实例化
+
+  ```java
+  public class SimpleInstantiationStrategy implements InstantiationStrategy {
+      @Override
+      public Object instantiate(BeanDefinition beanDefinition) throws BeansException {
+          Class beanClass = beanDefinition.getBeanClass();
+          Object bean = null;
+          try {
+              Constructor constructor = beanClass.getConstructor();
+              bean = constructor.newInstance();
+          } catch (Exception e) {
+              throw new BeansException("Failed to instantiate [" + beanClass.getName() + "]", e);
+          }
+          return bean;
+      }
+  }
+  ```
+
+- CglibSubclassingInstantiationStrategy，使用CGLIB动态生成子类
+
+  CGLIB可以在运行时动态生成子类，对父类进行扩展，从而实现代理的功能。与Java原生的动态代理相比，CGLIB可以代理没有实现接口的类，而且性能更高
+
+  ```java
+  /**
+   * 使用CGLIB动态生成子类
+   */
+  public class CglibSubclassingInstantiationStrategy implements InstantiationStrategy {
+  
+      /**
+       * 使用CGLIB动态生成bean的代理类
+       *
+       * @param beanDefinition 定义bean的对象
+       * @return bean对象
+       * @throws BeansException 创建bean异常
+       */
+      @Override
+      public Object instantiate(BeanDefinition beanDefinition) throws BeansException {
+          // 创建一个Enhancer对象，Enhancer是CGLIB中的一个类，用于生成代理类的实例
+          Enhancer enhancer = new Enhancer();
+          // 设置Enhancer对象的父类为beanDefinition中的beanClass，即要代理的类
+          enhancer.setSuperclass(beanDefinition.getBeanClass());
+          // 设置Enhancer对象的回调函数，回调函数是一个MethodInterceptor对象，用于在代理对象执行方法时拦截并处理方法调用
+          enhancer.setCallback((MethodInterceptor) (obj, method, argsTemp, proxy) -> proxy.invokeSuper(obj, argsTemp));
+          // 调用Enhancer对象的create()方法生成代理对象并返回
+          return enhancer.create();
+      }
+  }
+  ```
