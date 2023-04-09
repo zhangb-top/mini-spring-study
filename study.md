@@ -513,20 +513,46 @@ public class HelloService {
   }
   ```
 
+**测试**
+
+```java
+public class PopulateBeanWithPropertyValuesTest {
+    @Test
+    public void testPopulateBeanWithPropertyValues() {
+        // 1、获得beanFactory对象
+        DefaultListableBeanFactory defaultListableBeanFactory = new DefaultListableBeanFactory();
+        // 2、定义bean的属性集合
+        PropertyValues propertyValues = new PropertyValues();
+        // 3、为bean的属性集合添加属性
+        propertyValues.addPropertyValue(new PropertyValue("name", "张三"));
+        propertyValues.addPropertyValue(new PropertyValue("age", 18));
+        // 4、创建定义bean的对象
+        BeanDefinition beanDefinition = new BeanDefinition(Person.class, propertyValues);
+        // 5、注册定义bean的对象
+        defaultListableBeanFactory.registryBeanDefinition("Person", beanDefinition);
+        // 6、获取工厂里面的bean对象
+        Person person = (Person) defaultListableBeanFactory.getBean("Person");
+        // 7、使用bean
+        System.out.println(person);
+        assertThat(person.getName()).isEqualTo("张三");
+        assertThat(person.getAge()).isEqualTo(18);
+    }
+}
+```
+
 ## 为bean注入bean
 
 > 分支：populate-bean-with-bean
 
-增加BeanReference类，包装一个bean对另一个bean的引用。实例化beanA后填充属性时，若PropertyValue#value为BeanReference，引用beanB，则先去实例化beanB
-由于不想增加代码的复杂度提高理解难度，暂时不支持循环依赖，后面会在高级篇中解决该问题
+增加BeanReference类，包装一个bean对另一个bean的引用。实例化beanA后填充属性时，若PropertyValue#value为BeanReference，引用beanB，则先去实例化beanB。？》、。
+由于不想增加代码的复杂度提高理解难度，暂时不支持循环依赖，后面会在高级篇中解决该问题。
 
-```java
+```
 protected void applyPropertyValues(String beanName, Object bean, BeanDefinition beanDefinition) {
     try {
         for (PropertyValue propertyValue : beanDefinition.getPropertyValues().getPropertyValues()) {
             String name = propertyValue.getName();
             Object value = propertyValue.getValue();
-            // 强转
             if (value instanceof BeanReference) {
                 // beanA依赖beanB，先实例化beanB
                 BeanReference beanReference = (BeanReference) value;
@@ -544,8 +570,9 @@ protected void applyPropertyValues(String beanName, Object bean, BeanDefinition 
 
 **测试**
 
-```java
+```
 public class PopulateBeanWithPropertyValuesTest {
+
 	/**
 	 * 为bean注入bean
 	 *
