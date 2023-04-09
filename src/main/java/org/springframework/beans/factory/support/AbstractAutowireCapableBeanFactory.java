@@ -1,6 +1,8 @@
 package org.springframework.beans.factory.support;
 
+import cn.hutool.core.bean.BeanUtil;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.PropertyValue;
 import org.springframework.beans.factory.config.BeanDefinition;
 
 public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFactory {
@@ -14,6 +16,24 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         this.instantiationStrategy = instantiation;
     }
 
+    /**
+     * 为bean添加属性
+     *
+     * @param beanName       bean名称
+     * @param bean           bean对象
+     * @param beanDefinition 定义bean的对象
+     */
+    public void applyPropertyValues(String beanName, Object bean, BeanDefinition beanDefinition) {
+        PropertyValue[] propertyValues = beanDefinition.getPropertyValues().getPropertyValues();
+        for (PropertyValue propertyValue : propertyValues) {
+            String name = propertyValue.getName();
+            Object value = propertyValue.getValue();
+
+            // 使用反射添加属性
+            BeanUtil.setFieldValue(bean, name, value);
+        }
+    }
+
     @Override
     public Object createBean(String beanName, BeanDefinition beanDefinition) throws BeansException {
         return doCreateBean(beanName, beanDefinition);
@@ -23,6 +43,8 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
         Object bean = null;
         try {
             bean = createBeanInstance(beanDefinition);
+            // 添加属性
+            applyPropertyValues(beanName, bean, beanDefinition);
         } catch (Exception e) {
             throw new BeansException("Instantiation of bean failed", e);
         }
