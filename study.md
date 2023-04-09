@@ -547,7 +547,7 @@ public class PopulateBeanWithPropertyValuesTest {
 增加BeanReference类，包装一个bean对另一个bean的引用。实例化beanA后填充属性时，若PropertyValue#value为BeanReference，引用beanB，则先去实例化beanB。？》、。
 由于不想增加代码的复杂度提高理解难度，暂时不支持循环依赖，后面会在高级篇中解决该问题。
 
-```
+```java
 protected void applyPropertyValues(String beanName, Object bean, BeanDefinition beanDefinition) {
     try {
         for (PropertyValue propertyValue : beanDefinition.getPropertyValues().getPropertyValues()) {
@@ -570,7 +570,7 @@ protected void applyPropertyValues(String beanName, Object bean, BeanDefinition 
 
 **测试**
 
-```
+```java
 public class PopulateBeanWithPropertyValuesTest {
 
 	/**
