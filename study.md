@@ -326,7 +326,3 @@ public class HelloService {
     }
 }
 ```
-
-## [Bean实例化策略InstantiationStrategy](#Bean实例化策略InstantiationStrategy)
-
-> 代码分支：instantiation-strategy
