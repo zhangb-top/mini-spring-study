@@ -12,5 +12,5 @@ public interface BeanDefinitionRegistry {
      * @param beanName       bean的名称
      * @param beanDefinition bean的属性类
      */
-    void registryBean(String beanName, BeanDefinition beanDefinition);
+    void registryBeanDefinition(String beanName, BeanDefinition beanDefinition);
 }

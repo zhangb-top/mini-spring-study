@@ -12,7 +12,7 @@ public class BeanDefinitionAndBeanDefinitionRegistryTest {
         // 2、获取注册bean的class属性
         BeanDefinition beanDefinition = new BeanDefinition(HelloService.class);
         // 3、注册bean
-        beanFactory.registryBean("helloService", beanDefinition);
+        beanFactory.registryBeanDefinition("helloService", beanDefinition);
         // 4、使用bean
         HelloService helloService = (HelloService) beanFactory.getBean("helloService");
         helloService.sayHello();
