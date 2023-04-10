@@ -6,7 +6,7 @@ import org.springframework.beans.PropertyValue;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanReference;
 
-public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFactory {
+public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFactory implements AutowireCapableBeanFactory {
     public InstantiationStrategy instantiationStrategy = new CglibSubclassingInstantiationStrategy();
 
     public InstantiationStrategy getInstantiationStrategy() {

@@ -1,10 +1,10 @@
 package org.springframework.beans.factory.support;
 
 import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 
-public abstract class AbstractBeanFactory extends DefaultSimpletonBeanRegistry implements BeanFactory {
+public abstract class AbstractBeanFactory extends DefaultSimpletonBeanRegistry implements ConfigurableBeanFactory {
     @Override
     public Object getBean(String beanName) {
         // 获取单例bean
@@ -14,6 +14,17 @@ public abstract class AbstractBeanFactory extends DefaultSimpletonBeanRegistry i
         // 不存在单例bean则创建
         BeanDefinition beanDefinition = getBeanDefinition(beanName);
         return createBean(beanName, beanDefinition);
+    }
+
+    /**
+     * @param name
+     * @param requiredType
+     * @param <T>
+     * @return
+     */
+    @Override
+    public <T> T getBean(String name, Class<T> requiredType) {
+        return ((T) getBean(name));
     }
 
     /**

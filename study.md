@@ -805,3 +805,333 @@ public class ResourceAndResourceLoaderTest {
     }
 }
 ```
+
+## 在xml文件中定义bean
+
+> 分支：xml-file-define-bean
+
+有了资源加载器，就可以在xml格式配置文件中声明式地定义bean的信息，资源加载器读取xml文件，解析出bean的信息，然后往容器中注册BeanDefinition。
+
+BeanDefinitionReader是读取bean定义信息的抽象接口，XmlBeanDefinitionReader是从xml文件中读取的实现类。BeanDefinitionReader需要有获取资源的能力，且读取bean定义信息后需要往容器中注册BeanDefinition，因此BeanDefinitionReader的抽象实现类AbstractBeanDefinitionReader拥有ResourceLoader和BeanDefinitionRegistry两个属性。
+
+由于从xml文件中读取的内容是String类型，所以属性仅支持String类型和引用其他Bean。后面会讲到属性编辑器PropertyEditor，实现类型转换。
+
+为了方便后面的讲解和功能实现，并且尽量保持和spring中BeanFactory的继承层次一致，对BeanFactory的继承层次稍微做了调整。
+
+
+
+BeanFactory以及它的拓展接口，每一个Factory接口都对BeanFactory的功能进行了拓展
+
+![20230410202617](./img/20230410202617.jpg)
+
+Bean工厂整体类图
+
+![20230410202920](./img/20230410202920.jpg)
+
+读取xml配置文件的类图
+
+![20230410203047](./img/20230410203047.jpg)
+
+与定义bean有关的类图
+
+![203241](./img/203241.jpg)
+
+- BeanFactory新增，在AbstractBeanFactory中实现
+
+  ```java
+  /**
+   * 根据名称和类型获取bean
+   *
+   * @param name         bean的名称
+   * @param requiredType bean的类型
+   * @param <T>          bean的类型
+   * @return bean
+   */
+  <T> T getBean(String name, Class<T> requiredType);
+  ```
+
+  ```java
+  /**
+   * @param name
+   * @param requiredType
+   * @param <T>
+   * @return
+   */
+  @Override
+  public <T> T getBean(String name, Class<T> requiredType) {
+      return ((T) getBean(name));
+  }
+  ```
+
+- BeanDefinitionRegistry新增，在DefaultListableBeanFactory中实现
+
+  ```java
+  /**
+   * 获取beanDefinition
+   *
+   * @param beanName bean名称
+   * @return beanDefinition
+   * @throws BeansException 未找到bean
+   */
+  BeanDefinition getBeanDefinition(String beanName) throws BeansException;
+  
+  /**
+   * 判断bean是否存在
+   *
+   * @param beanName bean名称
+   * @return true or false
+   */
+  boolean containsBeanDefinition(String beanName);
+  
+  /**
+   * 获取所有bean的名称
+   *
+   * @return bean的名称数组
+   */
+  String[] getBeanDefinitionNames();
+  ```
+
+  ```java
+  @Override
+  public BeanDefinition getBeanDefinition(String beanName) throws BeansException {
+      BeanDefinition beanDefinition = beanDefinitionMap.get(beanName);
+      if (beanDefinition == null)
+          throw new BeansException("No bean named '" + beanName + "' is defined");
+      return beanDefinition;
+  }
+  
+  @Override
+  public boolean containsBeanDefinition(String beanName) {
+      return beanDefinitionMap.containsKey(beanName);
+  }
+  
+  @Override
+  public String[] getBeanDefinitionNames() {
+      Set<String> beanNames = beanDefinitionMap.keySet();
+      return beanNames.toArray(new String[0]);
+  }
+  ```
+
+- 新增ListableBeanFactory类，在DefaultListableBeanFactory中实现
+
+  ```java
+  public interface ListableBeanFactory extends BeanFactory {
+      /**
+       * 找到指定类型的所有bean
+       *
+       * @param type bean类型
+       * @param <T>  泛型
+       * @return beanMap
+       * @throws BeansException 未找到bean
+       */
+      <T> Map<String, T> getBeansOfType(Class<T> type) throws BeansException;
+  
+      /**
+       * 返回定义的所有bean的名称
+       *
+       * @return 所有bean的名称
+       */
+      String[] getBeanDefinitionNames();
+  }
+  ```
+
+  ```java
+  @Override
+  public <T> Map<String, T> getBeansOfType(Class<T> type) throws BeansException {
+      Map<String, T> result = new HashMap<>();
+      beanDefinitionMap.forEach((beanName, beanDefinition) -> {
+          Class beanClass = beanDefinition.getBeanClass();
+          // 判断beanDefinition是否是 type 类型的bean或其子类
+          if (type.isAssignableFrom(beanClass)) {
+              T bean = (T) getBean(beanName);
+              result.put(beanName, bean);
+          }
+      });
+      return result;
+  }
+  ```
+
+- 修改BeanDefinition类的构造函数
+
+  ```java
+  public BeanDefinition(Class beanClass, PropertyValues propertyValues) {
+      this.beanClass = beanClass;
+      this.propertyValues = propertyValues != null ? propertyValues : new PropertyValues();
+  }
+  ```
+
+- BeanDefinitionReader
+
+  ```java
+  /**
+   * 读取bean定义信息的抽象接口
+   */
+  public interface BeanDefinitionReader {
+      // 获取注册信息
+      BeanDefinitionRegistry getRegistry();
+  
+      // 获取资源查找定位策略
+      ResourceLoader getResourceLoader();
+  
+      // 根据资源获取beanDefinition
+      void loadBeanDefinitions(Resource resource) throws BeansException;
+  
+      // 根据路径获取beanDefinition
+      void loadBeanDefinitions(String location) throws BeansException;
+  
+      // 根据多个路径获取beanDefinition
+      void loadBeanDefinitions(String[] locations) throws BeansException;
+  }
+  ```
+
+- AbstractBeanDefinitionReader
+
+  ```java
+  public abstract class AbstractBeanDefinitionReader implements BeanDefinitionReader {
+      private final BeanDefinitionRegistry registry;
+  
+      private ResourceLoader resourceLoader;
+  
+      public AbstractBeanDefinitionReader(BeanDefinitionRegistry registry) {
+          this(registry, new DefaultResourceLoader());
+      }
+  
+      public AbstractBeanDefinitionReader(BeanDefinitionRegistry registry, ResourceLoader resourceLoader) {
+          this.registry = registry;
+          this.resourceLoader = resourceLoader;
+      }
+  
+      @Override
+      public BeanDefinitionRegistry getRegistry() {
+          return registry;
+      }
+  
+      @Override
+      public ResourceLoader getResourceLoader() {
+          return resourceLoader;
+      }
+  
+      public void setResourceLoader(ResourceLoader resourceLoader) {
+          this.resourceLoader = resourceLoader;
+      }
+  
+      @Override
+      public void loadBeanDefinitions(String[] locations) throws BeansException {
+          for (String location : locations) {
+              loadBeanDefinitions(location);
+          }
+      }
+  }
+  ```
+
+- XmlBeanDefinitionReader
+
+  ```java
+  public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
+      public static final String BEAN_ELEMENT = "bean";
+      public static final String PROPERTY_ELEMENT = "property";
+      public static final String ID_ATTRIBUTE = "id";
+      public static final String NAME_ATTRIBUTE = "name";
+      public static final String CLASS_ATTRIBUTE = "class";
+      public static final String VALUE_ATTRIBUTE = "value";
+      public static final String REF_ATTRIBUTE = "ref";
+  
+      public XmlBeanDefinitionReader(BeanDefinitionRegistry registry) {
+          super(registry);
+      }
+  
+      public XmlBeanDefinitionReader(BeanDefinitionRegistry registry, ResourceLoader resourceLoader) {
+          super(registry, resourceLoader);
+      }
+  
+      @Override
+      public void loadBeanDefinitions(Resource resource) throws BeansException {
+          try {
+              InputStream is = resource.getInputStream();
+              try {
+                  // 解析xml配置文件，加载bean
+                  doLoadBeanDefinitions(is);
+              } finally {
+                  is.close();
+              }
+          } catch (IOException ex) {
+              throw new BeansException("IOException parsing XML document from " + resource, ex);
+          }
+      }
+  
+      @Override
+      public void loadBeanDefinitions(String location) throws BeansException {
+          ResourceLoader resourceLoader = getResourceLoader();
+          Resource resource = resourceLoader.getResource(location);
+          loadBeanDefinitions(resource);
+      }
+  
+      public void doLoadBeanDefinitions(InputStream is) {
+          Document document = XmlUtil.readXML(is);
+          Element element = document.getDocumentElement();
+          NodeList childNodes = element.getChildNodes();
+          for (int i = 0; i < childNodes.getLength(); i++) {
+              if (childNodes.item(i) instanceof Element) {
+                  if (BEAN_ELEMENT.equals(childNodes.item(i).getNodeName())) {
+                      // 解析bean标签
+                      Element bean = (Element) childNodes.item(i);
+  
+                      String id = bean.getAttribute(ID_ATTRIBUTE);
+                      String name = bean.getAttribute(NAME_ATTRIBUTE);
+                      String className = bean.getAttribute(CLASS_ATTRIBUTE);
+  
+                      // 获取bean的class对象
+                      Class<?> clazz = null;
+                      try {
+                          clazz = Class.forName(className);
+                      } catch (ClassNotFoundException e) {
+                          throw new BeansException("Cannot find class [" + className + "]");
+                      }
+  
+                      // 获取beanName，id>name>类名首字母小写
+                      String beanName = StrUtil.isNotEmpty(id) ? id : name;
+                      if (StrUtil.isEmpty(beanName))
+                          beanName = StrUtil.lowerFirst(clazz.getSimpleName());
+  
+                      // 定义beanDefinition
+                      BeanDefinition beanDefinition = new BeanDefinition(clazz);
+  
+                      for (int j = 0; j < bean.getChildNodes().getLength(); j++) {
+                          // 解析property标签
+                          if (bean.getChildNodes().item(j) instanceof Element) {
+                              if (PROPERTY_ELEMENT.equals(bean.getChildNodes().item(j).getNodeName())) {
+                                  Element property = (Element) bean.getChildNodes().item(j);
+                                  String propertyName = property.getAttribute(NAME_ATTRIBUTE);
+                                  String propertyValue = property.getAttribute(VALUE_ATTRIBUTE);
+                                  String propertyRef = property.getAttribute(REF_ATTRIBUTE);
+  
+                                  // 属性name为空
+                                  if (StrUtil.isEmpty(propertyName))
+                                      throw new BeansException("The name attribute cannot be null or " +
+                                              "empty");
+  
+                                  Object value = propertyValue;
+                                  // ref不为空
+                                  if (StrUtil.isNotEmpty(propertyRef)) {
+                                      value = new BeanReference(propertyRef);
+                                  }
+  
+                                  // 为bean添加属性
+                                  PropertyValue pv = new PropertyValue(propertyName, value);
+                                  beanDefinition.getPropertyValues().addPropertyValue(pv);
+                              }
+                          }
+                      }
+                      if (getRegistry().containsBeanDefinition(beanName))
+                          // bean名称重复
+                          throw new BeansException("Duplicate beanName[" + beanName + "] is not allowed");
+  
+                      // 注册BeanDefinition
+                      getRegistry().registryBeanDefinition(beanName, beanDefinition);
+                  }
+              }
+          }
+      }
+  }
+  ```
+
