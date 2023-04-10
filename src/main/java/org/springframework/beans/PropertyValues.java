@@ -15,6 +15,14 @@ public class PropertyValues {
      * @param pv bean的属性
      */
     public void addPropertyValue(PropertyValue pv) {
+        for (int i = 0; i < propertyValueList.size(); i++) {
+            PropertyValue currentPv = propertyValueList.get(i);
+            if (currentPv.getName().equals(pv.getName())) {
+                // 有则覆盖
+                propertyValueList.set(i, pv);
+                return;
+            }
+        }
         propertyValueList.add(pv);
     }
 

@@ -45,4 +45,9 @@ public abstract class AbstractBeanFactory extends DefaultSimpletonBeanRegistry i
      * @throws BeansException 未找到bean
      */
     public abstract BeanDefinition getBeanDefinition(String beanName) throws BeansException;
+
+    @Override
+    public void addBeanPostProcessor() throws BeansException {
+
+    }
 }

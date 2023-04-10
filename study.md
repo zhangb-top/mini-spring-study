@@ -1135,3 +1135,82 @@ Bean工厂整体类图
   }
   ```
 
+## BeanFactoryPostProcess和BeanPostProcessor
+
+> 分支：bean-factory-post-processor-and-bean-post-processor
+
+BeanFactoryPostProcess和BeanPostProcessor是spring框架中具有重量级地位的两个接口，理解了这两个接口的作用，基本就理解spring的核心原理了。为了降低理解难度分两个小节实现。
+
+BeanFactoryPostProcessor是spring提供的容器扩展机制，允许我们在bean实例化之前修改bean的定义信息即BeanDefinition的信息。其重要的实现类有PropertyPlaceholderConfigurer和CustomEditorConfigurer，PropertyPlaceholderConfigurer的作用是用properties文件的配置值替换xml文件中的占位符，CustomEditorConfigurer的作用是实现类型转换。BeanFactoryPostProcessor的实现比较简单，看单元测试BeanFactoryPostProcessorAndBeanPostProcessorTest#testBeanFactoryPostProcessor追下代码。
+
+BeanPostProcessor也是spring提供的容器扩展机制，不同于BeanFactoryPostProcessor的是，BeanPostProcessor在bean实例化后修改bean或替换bean。BeanPostProcessor是后面实现AOP的关键。
+
+BeanPostProcessor的两个方法分别在bean执行初始化方法（后面实现）之前和之后执行，理解其实现重点看单元测试BeanFactoryPostProcessorAndBeanPostProcessorTest#testBeanPostProcessor和AbstractAutowireCapableBeanFactory#initializeBean方法，PropertyValues中添加属性函数、ConfigurableListableBeanFactory类做了微调。
+
+1. BeanFactoryPostProcess
+
+   - 创建一个BeanFactoryPostProcess类，有一个postProcessBeanFactory方法，在beanDefinition加载完成，但是bean为创建的时候，提供修改bean属性值的方法
+
+     ```java
+     public interface BeanFactoryPostProcessor {
+         /**
+          * 在beanDefinition加载完成，但是bean为创建的时候，提供修改bean属性值的方法
+          *
+          * @param beanFactory bean工厂
+          * @throws BeansException 异常
+          */
+         void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException;
+     }
+     ```
+
+   - ConfigurableListableBeanFactory中微调
+
+     ```java
+     public interface ConfigurableListableBeanFactory extends ListableBeanFactory, ConfigurableBeanFactory,
+             AutowireCapableBeanFactory {
+         /**
+          * 根据名称查找BeanDefinition
+          *
+          * @param beanName bean名称
+          * @return beanDefinition
+          * @throws BeansException 如果找不到BeanDefinition
+          */
+         BeanDefinition getBeanDefinition(String beanName) throws BeansException;
+     }
+     ```
+
+   - 创建一个BeanFactoryPostProcessor的实现类
+
+     ```java
+     public class CustomBeanFactoryPostProcessor implements BeanFactoryPostProcessor {
+         @Override
+         public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
+             BeanDefinition person = beanFactory.getBeanDefinition("person");
+             PropertyValues propertyValues = person.getPropertyValues();
+             // 修改名字为王麻子
+             propertyValues.addPropertyValue(new PropertyValue("name", "王麻子"));
+         }
+     }
+     ```
+
+   - 测试
+
+     ```java
+     public class BeanFactoryPostProcessorAndBeanPostProcessorTest {
+         @Test
+         public void testBeanFactoryPostProcessor() {
+             DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+     
+             XmlBeanDefinitionReader beanDefinitionReader = new XmlBeanDefinitionReader(beanFactory);
+             beanDefinitionReader.loadBeanDefinitions("classpath:spring.xml");
+     
+             // 在BeanDefinition创建完，bean未创建时添加
+             CustomBeanFactoryPostProcessor beanFactoryPostProcessor = new CustomBeanFactoryPostProcessor();
+             beanFactoryPostProcessor.postProcessBeanFactory(beanFactory);
+     
+             Person person = (Person) beanFactory.getBean("person");
+             // 修改了xml配置文件中person的name值为王麻子，注意输出结果
+             System.out.println(person);
+         }
+     }
+     ```
