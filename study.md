@@ -327,7 +327,7 @@ public class HelloService {
 }
 ```
 
-## [Bean实例化策略InstantiationStrategy](#Bean实例化策略InstantiationStrategy)
+## Bean实例化策略InstantiationStrategy
 
 > 代码分支：instantiation-strategy
 
@@ -608,3 +608,200 @@ public class PopulateBeanWithPropertyValuesTest {
 }
 ```
 
+## 资源和资源加载器
+
+> 分支：resource-and-resource-loader
+
+Resource是资源的抽象和访问接口，简单写了三个实现类
+
+![134402](./img/134402.jpg)
+
+- Resource，资源的抽象和访问接口
+
+  ```java
+  /**
+   * 资源的抽象和访问接口
+   */
+  public interface Resource {
+  
+      /**
+       * 获取资源文件的输入流
+       *
+       * @return 输入流
+       * @throws IOException IO异常
+       */
+      InputStream getInputStream() throws IOException;
+  }
+  ```
+
+- FileSystemResource，文件系统资源的实现类
+
+  ```java
+  /**
+   * 文件系统资源的实现类
+   */
+  public class FileSystemResource implements Resource {
+      private final String filePath;
+  
+      public FileSystemResource(String filePath) {
+          this.filePath = filePath;
+      }
+  
+      @Override
+      public InputStream getInputStream() throws IOException {
+          try {
+              Path path = new File(filePath).toPath();
+              return Files.newInputStream(path);
+          } catch (NoSuchFileException ex) {
+              throw new FileNotFoundException(ex.getMessage());
+          }
+      }
+  }
+  ```
+
+- ClassPathResource，classpath下资源的实现类
+
+  ```java
+  /**
+   * classpath下资源的实现类
+   */
+  public class ClassPathResource implements Resource {
+      private final String path;
+  
+      public ClassPathResource(String path) {
+          this.path = path;
+      }
+  
+      /**
+       * 从当前类所在的类加载器中获取指定路径下的资源文件，并返回一个输入流
+       * 1、this.getClass() 获取当前类的 Class 对象
+       * 2、getClassLoader() 获取当前类的类加载器（加载resources目录）
+       * 3、getResourceAsStream(this.path) 获取指定路径下的资源文件，并返回一个输入流。其中，this.path
+       * 是一个字符串类型的参数，表示需要获取的资源文件的路径。这个路径可以是相对于当前类所在的包的相对路径
+       * 也可以是以“/”开头的绝对路径。如果资源文件不存在，将返回 null
+       *
+       * @return 资源文件的输入流
+       * @throws IOException IO异常
+       */
+      @Override
+      public InputStream getInputStream() throws IOException {
+          InputStream is = this.getClass().getClassLoader().getResourceAsStream(this.path);
+          if (is == null) {
+              throw new FileNotFoundException(this.path + " cannot be opened because it does not exist");
+          }
+          return is;
+      }
+  }
+  ```
+
+  Spring中获取当前类的类加载器会读取resources目录下的文件。在Spring中，可以通过以下方式获取当前类的类加载器：
+
+  1. 使用Thread.currentThread().getContextClassLoader()方法获取当前线程的上下文类加载器；
+  2. 使用当前类的getClassLoader()方法获取当前类的类加载器。
+
+  无论是哪种方式，都会读取classpath下的资源文件，包括resources目录下的文件。因此，在Spring中，可以将需要读取的配置文件放在resources目录下，然后使用上述方式获取类加载器并加载配置文件。
+
+- UrlResource，对java.net.URL进行资源定位的实现类
+
+  ```java
+  /**
+   * 对java.net.URL进行资源定位的实现类
+   */
+  public class UrlResource implements Resource {
+      private final URL url;
+  
+      public UrlResource(URL url) {
+          this.url = url;
+      }
+  
+      /**
+       * 使用 URL 类的 openConnection() 方法打开一个网络连接，并获取该连接的输入流
+       *
+       * @return URL连接的输入流
+       * @throws IOException IO异常
+       */
+      @Override
+      public InputStream getInputStream() throws IOException {
+          URLConnection con = url.openConnection();
+          try {
+              return con.getInputStream();
+          } catch (IOException ex) {
+              throw ex;
+          }
+      }
+  }
+  ```
+
+- ResourceLoader接口则是资源查找定位策略的抽象
+
+  ```java
+  /**
+   * 资源查找定位策略的抽象
+   */
+  public interface ResourceLoader {
+      /**
+       * 获取资源接口的实现类，从而获取InputStream
+       *
+       * @param location 资源路径
+       * @return 资源实现类
+       */
+      Resource getResource(String location);
+  }
+  ```
+
+- DefaultResourceLoader是其默认实现类
+
+  ```java
+  public class DefaultResourceLoader implements ResourceLoader {
+      private final String CLASSPATH_URL_PREFIX = "classpath:";
+  
+      @Override
+      public Resource getResource(String location) {
+          if (location.startsWith(CLASSPATH_URL_PREFIX)) {
+              // 首先从classpath查找资源
+              return new ClassPathResource(location.substring(CLASSPATH_URL_PREFIX.length()));
+          } else {
+              try {
+                  // 从URL资源中查找
+                  URL url = new URL(location);
+                  return new UrlResource(url);
+              } catch (MalformedURLException ex) {
+                  // 从系统资源中查找
+                  return new FileSystemResource(location);
+              }
+          }
+      }
+  }
+  ```
+
+**测试**
+
+```java
+public class ResourceAndResourceLoaderTest {
+    @Test
+    public void testResourceAndResourceLoader() throws IOException {
+        DefaultResourceLoader resourceLoader = new DefaultResourceLoader();
+
+        // 加载classpath下的资源
+        String classPath = "classpath:hello.txt";
+        Resource resource = resourceLoader.getResource(classPath);
+        InputStream inputStream = resource.getInputStream();
+        String str = IoUtil.readUtf8(inputStream);
+        System.out.println(str);
+
+        // 加载URL资源文件
+        String url = "https://www.baidu.com";
+        resource = resourceLoader.getResource(url);
+        inputStream = resource.getInputStream();
+        str = IoUtil.readUtf8(inputStream);
+        System.out.println(str);
+
+        // 加载系统资源文件
+        String filePath = "src/test/resources/hello.txt";
+        resource = resourceLoader.getResource(filePath);
+        inputStream = resource.getInputStream();
+        str = IoUtil.readUtf8(inputStream);
+        System.out.println(str);
+    }
+}
+```
