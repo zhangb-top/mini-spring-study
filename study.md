@@ -1409,3 +1409,168 @@ BeanPostProcessor的两个方法分别在bean执行初始化方法（后面实�
          }
      }
      ```
+
+## 应用上下文ApplicationContext
+
+> 分支：application-context
+
+应用上下文ApplicationContext是spring中较之于BeanFactory更为先进的IOC容器，ApplicationContext除了拥有BeanFactory的所有功能外，还支持特殊类型bean如上一节中的BeanFactoryPostProcessor和BeanPostProcessor的自动识别、资源加载、容器事件和监听器、国际化支持、单例bean自动初始化等。
+
+BeanFactory是spring的基础设施，面向spring本身；而ApplicationContext面向spring的使用者，应用场合使用ApplicationContext。
+
+具体实现查看AbstractApplicationContext#refresh方法即可。注意BeanFactoryPostProcessor和BeanPostProcessor的自定识别，这样就可以在xml文件中配置二者而不需要像上一节一样手动添加到容器中了。
+
+从bean的角度看，目前生命周期如下：
+
+![application-context-life-cycle](./img/application-context-life-cycle.jpg)
+
+- ApplicationContext，最底层接口，也可以管理xml中配置的BeanFactoryPostProcessor和BeanPostProcessor
+
+  ```java
+  /**
+   * 应用上下文
+   */
+  public interface ApplicationContext extends ListableBeanFactory, HierarchicalBeanFactory,
+          ResourceLoader {
+  }
+  ```
+
+- AbstractApplicationContext，<font color="red">创建BeanFactory并加载bean（由其子类AbstractRefreshableApplicationContext完成）</font>、执行BeanFactoryPostProcessor、执行BeanPostProcessor
+
+  ```java
+  public abstract class AbstractApplicationContext extends DefaultResourceLoader implements ConfigurableApplicationContext {
+      @Override
+      public void refresh() throws BeansException {
+          // 创建beanFactory，并加载bean
+          refreshBeanFactory();
+          ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+  
+          // 在bean创建前执行 BeanFactoryPostProcessor
+          invokeBeanFactoryPostProcessors(beanFactory);
+  
+          // 在bean创建前后执行 BeanPostProcessor
+          registerBeanPostProcessors(beanFactory);
+      }
+  
+      protected abstract void refreshBeanFactory() throws BeansException;
+  
+      protected abstract ConfigurableListableBeanFactory getBeanFactory() throws BeansException;
+  
+      private void invokeBeanFactoryPostProcessors(ConfigurableListableBeanFactory beanFactory) {
+          Map<String, BeanFactoryPostProcessor> beanFactoryPostProcessorMap =
+                  getBeansOfType(BeanFactoryPostProcessor.class);
+          beanFactoryPostProcessorMap.forEach((name, beanFactoryPostProcessor) -> {
+              beanFactoryPostProcessor.postProcessBeanFactory(beanFactory);
+          });
+      }
+  
+      private void registerBeanPostProcessors(ConfigurableListableBeanFactory beanFactory) {
+          Map<String, BeanPostProcessor> beanPostProcessorMap = getBeansOfType(BeanPostProcessor.class);
+          beanPostProcessorMap.forEach((name, beanPostProcessor) -> {
+              beanFactory.addBeanPostProcessor(beanPostProcessor);
+          });
+      }
+  
+      @Override
+      public Object getBean(String name) {
+          return getBeanFactory().getBean(name);
+      }
+  
+      @Override
+      public <T> T getBean(String name, Class<T> requiredType) {
+          return getBeanFactory().getBean(name, requiredType);
+      }
+  
+      @Override
+      public <T> Map<String, T> getBeansOfType(Class<T> type) throws BeansException {
+          return getBeanFactory().getBeansOfType(type);
+      }
+  
+      @Override
+      public String[] getBeanDefinitionNames() {
+          return getBeanFactory().getBeanDefinitionNames();
+      }
+  }
+  ```
+
+- AbstractRefreshableApplicationContext，完成AbstractApplicationContext类的<font color="red">创建BeanFactory的功能</font>，将<font color="red">加载bean的功能</font>交由子类AbstractXmlApplicationContext类完成
+
+  ```java
+  public abstract class AbstractRefreshableApplicationContext extends AbstractApplicationContext {
+      private DefaultListableBeanFactory beanFactory;
+  
+      @Override
+      protected void refreshBeanFactory() throws BeansException {
+          DefaultListableBeanFactory beanFactory = createBeanFactory();
+          loadBeanDefinitions(beanFactory);
+          this.beanFactory = beanFactory;
+      }
+  
+      @Override
+      protected ConfigurableListableBeanFactory getBeanFactory() throws BeansException {
+          return beanFactory;
+      }
+  
+      /**
+       * 加载beanDefinitions
+       *
+       * @param beanFactory 工厂
+       * @throws BeansException 异常
+       */
+      protected abstract void loadBeanDefinitions(DefaultListableBeanFactory beanFactory) throws BeansException;
+  
+      public DefaultListableBeanFactory createBeanFactory() {
+          return new DefaultListableBeanFactory();
+      }
+  }
+  ```
+
+- AbstractXmlApplicationContext，完成AbstractRefreshableApplicationContext类<font color="red">加载bean的功能</font>，将<font color="red">加载bean时所需要的配置文件的位置信息</font>获取交由子类ClassPathXmlApplicationContext完成
+
+  ```java
+  public abstract class AbstractXmlApplicationContext extends AbstractRefreshableApplicationContext {
+      @Override
+      protected void loadBeanDefinitions(DefaultListableBeanFactory beanFactory) throws BeansException {
+          XmlBeanDefinitionReader xmlBeanDefinitionReader = new XmlBeanDefinitionReader(beanFactory, this);
+          String[] configLocations = getConfigLocations();
+          if (configLocations != null)
+              xmlBeanDefinitionReader.loadBeanDefinitions(configLocations);
+      }
+  
+      protected abstract String[] getConfigLocations() throws BeansException;
+  }
+  ```
+
+- ClassPathXmlApplicationContext，完成AbstractRefreshableApplicationContext类加载bean时所需要的配置文件的位置信息的功能，同时可以通过沟站是实现自动刷新上下文
+
+  ```java
+  public class ClassPathXmlApplicationContext extends AbstractXmlApplicationContext {
+      private String[] configLocations;
+  
+      /**
+       * 从xml文件加载BeanDefinition，并且自动刷新上下文
+       *
+       * @param configLocation xml配置文件
+       * @throws BeansException 应用上下文创建失败
+       */
+      public ClassPathXmlApplicationContext(String configLocation) {
+          this(new String[]{configLocation});
+      }
+  
+      /**
+       * 从xml文件加载BeanDefinition，并且自动刷新上下文
+       *
+       * @param configLocations xml配置文件
+       * @throws BeansException 应用上下文创建失败
+       */
+      public ClassPathXmlApplicationContext(String[] configLocations) {
+          this.configLocations = configLocations;
+          refresh();
+      }
+  
+      @Override
+      protected String[] getConfigLocations() throws BeansException {
+          return configLocations;
+      }
+  }
+  ```

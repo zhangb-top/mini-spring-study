@@ -9,7 +9,8 @@ public class CustomBeanPostProcessor implements BeanPostProcessor {
     @Override
     public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
         System.out.println("CustomBeanPostProcessor#postProcessBeforeInitialization");
-        ((Car) bean).setBrand("宝马");
+        if ("car".equals(beanName))
+            ((Car) bean).setBrand("宝马");
         return bean;
     }
 
