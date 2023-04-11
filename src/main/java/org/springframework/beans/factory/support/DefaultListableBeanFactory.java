@@ -48,4 +48,10 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
     public void registryBeanDefinition(String beanName, BeanDefinition beanDefinition) {
         beanDefinitionMap.put(beanName, beanDefinition);
     }
+
+    // 提前实例化所有单例bean
+    @Override
+    public void preInstantiateSingletons() throws BeansException {
+        beanDefinitionMap.keySet().forEach(this::getBean);
+    }
 }

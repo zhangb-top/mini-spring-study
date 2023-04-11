@@ -2,9 +2,15 @@ package org.springframework.beans.factory.support;
 
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public abstract class AbstractBeanFactory extends DefaultSimpletonBeanRegistry implements ConfigurableBeanFactory {
+    private final List<BeanPostProcessor> beanPostProcessorList = new ArrayList<>();
+
     @Override
     public Object getBean(String beanName) {
         // 获取单例bean
@@ -46,8 +52,21 @@ public abstract class AbstractBeanFactory extends DefaultSimpletonBeanRegistry i
      */
     public abstract BeanDefinition getBeanDefinition(String beanName) throws BeansException;
 
+    /**
+     * 注册BeanPostProcessor
+     *
+     * @param beanPostProcessor
+     * @throws BeansException
+     */
     @Override
-    public void addBeanPostProcessor() throws BeansException {
+    public void addBeanPostProcessor(BeanPostProcessor beanPostProcessor) throws BeansException {
+        // 有则覆盖
+        beanPostProcessorList.remove(beanPostProcessor);
+        beanPostProcessorList.add(beanPostProcessor);
+    }
 
+
+    public List<BeanPostProcessor> getBeanPostProcessorList() {
+        return beanPostProcessorList;
     }
 }

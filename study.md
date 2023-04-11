@@ -1214,3 +1214,198 @@ BeanPostProcessor的两个方法分别在bean执行初始化方法（后面实�
          }
      }
      ```
+   
+2. BeanPostProcessor
+
+   - BeanPostProcessor
+
+     ```java
+     public interface BeanPostProcessor {
+         /**
+          * 在bean执行初始化方法之前，执行此方法
+          *
+          * @param bean     bean对象
+          * @param beanName bean名称
+          * @return bean
+          * @throws BeansException 异常
+          */
+         Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException;
+     
+         /**
+          * 在bean执行初始化方法之后，执行此方法
+          *
+          * @param bean     bean对象
+          * @param beanName bean名称
+          * @return bean
+          * @throws BeansException 异常
+          */
+         Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException;
+     }
+     ```
+
+   - CustomBeanPostProcessor，BeanPostProcessor的实现类
+
+     ```java
+     public class CustomBeanPostProcessor implements BeanPostProcessor {
+     
+         @Override
+         public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+             System.out.println("CustomBeanPostProcessor#postProcessBeforeInitialization");
+             ((Car) bean).setBrand("宝马");
+             return bean;
+         }
+     
+         @Override
+         public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+             System.out.println("CustomBeanPostProcessor#postProcessAfterInitialization");
+             return bean;
+         }
+     }
+     ```
+
+   - ConfigurableBeanFactory
+
+     ```java
+     public interface ConfigurableBeanFactory extends SimpletonBeanRegistry, HierarchicalBeanFactory {
+         // 创建bean的前后分别加入postProcessBeforeInitialization和postProcessAfterInitialization
+         void addBeanPostProcessor(BeanPostProcessor beanPostProcessor) throws BeansException;
+     }
+     ```
+
+   - ConfigurableListBeanFactory
+
+     ```java
+     public interface ConfigurableListableBeanFactory extends ListableBeanFactory, ConfigurableBeanFactory,
+             AutowireCapableBeanFactory {
+         /**
+          * 根据名称查找BeanDefinition
+          *
+          * @param beanName bean名称
+          * @return beanDefinition
+          * @throws BeansException 如果找不到BeanDefinition
+          */
+         BeanDefinition getBeanDefinition(String beanName) throws BeansException;
+     
+         // 创建bean的前后分别加入postProcessBeforeInitialization和postProcessAfterInitialization
+         @Override
+         void addBeanPostProcessor(BeanPostProcessor beanPostProcessor) throws BeansException;
+     
+         // 提前实例化所有单例bean
+         void preInstantiateSingletons() throws BeansException;
+     }
+     ```
+
+   - AbstractBeanFactory
+
+     ```java
+     private final List<BeanPostProcessor> beanPostProcessorList = new ArrayList<>();
+     
+     /**
+      * 注册BeanPostProcessor
+      *
+      * @param beanPostProcessor
+      * @throws BeansException
+      */
+     @Override
+     public void addBeanPostProcessor(BeanPostProcessor beanPostProcessor) throws BeansException {
+         // 有则覆盖
+         beanPostProcessorList.remove(beanPostProcessor);
+         beanPostProcessorList.add(beanPostProcessor);
+     }
+     
+     public List<BeanPostProcessor> getBeanPostProcessorList() {
+         return beanPostProcessorList;
+     }
+     ```
+
+   - DefaultListableBeanFactory
+
+     ```java
+     public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFactory implements BeanDefinitionRegistry, ConfigurableListableBeanFactory {
+         private final Map<String, BeanDefinition> beanDefinitionMap = new HashMap<>();
+     
+         // 提前实例化所有单例bean
+         @Override
+         public void preInstantiateSingletons() throws BeansException {
+             beanDefinitionMap.keySet().forEach(this::getBean);
+         }
+     }
+     ```
+
+   - AbstractAutowireCapableBeanFactory
+
+     ```java
+     public Object doCreateBean(String beanName, BeanDefinition beanDefinition) {
+         Object bean = null;
+         try {
+             // 省略......
+             // beanPostProcessor
+             bean = initializeBean(bean, beanName, beanDefinition);
+         } catch (Exception e) {
+             throw new BeansException("Instantiation of bean failed", e);
+         }
+         // 省略......
+     }
+     
+     public Object initializeBean(Object bean, String beanName, BeanDefinition beanDefinition) {
+         // 执行BeanPostProcessor的前置操作
+         bean = applyBeanPostProcessorsBeforeInitializeBean(bean, beanName);
+     
+         // TODO 后面会在此处执行bean的初始化方法
+         invokeInitMethods(bean, beanName, beanDefinition);
+     
+         // 执行BeanPostProcessor的后置操作
+         bean = applyBeanPostProcessorsAfterInitializeBean(bean, beanName);
+     
+         return bean;
+     }
+     
+     // 执行BeanPostProcessor的前置操作
+     public Object applyBeanPostProcessorsBeforeInitializeBean(Object bean, String beanName) {
+         Object result = bean;
+         for (BeanPostProcessor beanPostProcessor : getBeanPostProcessorList()) {
+             Object current = beanPostProcessor.postProcessBeforeInitialization(bean, beanName);
+             if (current == null) return result;
+             result = current;
+         }
+         return result;
+     }
+     
+     // TODO 后面会在此处执行bean的初始化方法
+     private void invokeInitMethods(Object bean, String beanName, BeanDefinition beanDefinition) {
+         System.out.println("初始化名称为" + beanName + "的bean");
+     }
+     
+     // 执行BeanPostProcessor的后置操作
+     private Object applyBeanPostProcessorsAfterInitializeBean(Object bean, String beanName) {
+         Object result = bean;
+         for (BeanPostProcessor beanPostProcessor : getBeanPostProcessorList()) {
+             Object current = beanPostProcessor.postProcessAfterInitialization(bean, beanName);
+             if (current == null) return result;
+             result = current;
+         }
+         return result;
+     }
+     ```
+
+   - 测试
+
+     ```java
+     public class BeanFactoryPostProcessorAndBeanPostProcessorTest {
+         @Test
+         public void testBeanPostProcessor() {
+             DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+     
+             XmlBeanDefinitionReader beanDefinitionReader = new XmlBeanDefinitionReader(beanFactory);
+             beanDefinitionReader.loadBeanDefinitions("classpath:spring.xml");
+     
+             // 在创建bean的前后处理
+             CustomBeanPostProcessor beanPostProcessor = new CustomBeanPostProcessor();
+             beanFactory.addBeanPostProcessor(beanPostProcessor);
+     
+             Car car = (Car) beanFactory.getBean("car");
+             // 注意输出结果 “宝马”
+             System.out.println(car);
+         }
+     }
+     ```
