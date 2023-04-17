@@ -1743,7 +1743,7 @@ public class InitAndDestroyMethodTest {
 
 现在bean的生命周期为：
 
-![init-and-destroy-method](./img/init-and-destroy-method.png)
+![init-and-destroy-method](http://cdn.zhangb.top/init-and-destroy-method.png)
 
 ## Aware接口
 
@@ -1904,3 +1904,9 @@ public class AwareInterfaceTest {
     }
 }
 ```
+
+
+
+至止，bean的生命周期如下：
+
+![aware-interface](http://cdn.zhangb.top/aware-interface.png)
