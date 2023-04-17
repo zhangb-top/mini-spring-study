@@ -1574,3 +1574,169 @@ BeanFactory是spring的基础设施，面向spring本身；而ApplicationContext
       }
   }
   ```
+
+## bean的初始化和销毁方法
+
+> 分支：init-and-destroy-method
+
+在spring中，定义bean的初始化和销毁方法有三种方法：
+
+- 在xml文件中制定init-method和destroy-method
+- 继承自InitializingBean和DisposableBean
+- 在方法上加注解PostConstruct和PreDestroy
+
+第三种通过BeanPostProcessor实现，在扩展篇中实现，本节只实现前两种。
+
+
+
+第一种方法：
+
+配置初始化方法：
+
+- 在BeanDefinition类中加入属性initMethodName属性，以及对应的get和set方法
+
+- 在xml中配置init-method属性，同时在XmlBeanDefinitionReader中读取init-method属性，将其配置到BeanDefinition中的initMethodName属性上
+
+- 在补全AbstractAutowireCapableBeanFactory中前面留下的invokeInitMethods方法部分，通过反射获取初始化方法，并且使用invoke函数调用该方法
+
+  ```java
+  private void invokeInitMethods(Object bean, String beanName, BeanDefinition beanDefinition) throws Exception {
+      // 在xml中配置了初始化的方法(第一种初始化方式)
+      String initMethodName = beanDefinition.getInitMethodName();
+      if (StrUtil.isNotEmpty(initMethodName)) {
+          Method initMethod = ClassUtil.getPublicMethod(beanDefinition.getBeanClass(),
+                  initMethodName);
+          if (initMethod == null)
+              throw new BeansException("Could not find an init method named '" + initMethodName + "'" +
+                      " on bean with name '" + beanName + "'");
+          initMethod.invoke(bean);
+      }
+  }
+  ```
+
+配置销毁方法：
+
+- 在BeanDefinition类中加入属性destroyMethodName属性，以及对应的get和set方法
+
+- 在xml中配置destroy-method属性，同时在XmlBeanDefinitionReader中读取destroy-method属性，将其配置到BeanDefinition中的destroyMethodName属性上
+
+- 新建一个Disposable接口，含有destroy方法
+
+- 新建一个DisposableBeanAdapter类实现Disposable接口，用于销毁bean，里面含有bean、beanName、destroyMethod（通过BeanDefinition获取）属性，同时含有destroy方法，通过反射执行bean的销毁方法
+
+  ```java
+  @Override
+  public void destroy() throws Exception {
+      if (StrUtil.isNotEmpty(destroyMethodName)) {
+          Method destroyMethod = ClassUtil.getPublicMethod(bean.getClass(), destroyMethodName);
+          if (destroyMethod == null)
+              throw new BeansException("Couldn't find a destroy method named '" + destroyMethodName + "' on bean with name '" + beanName + "'");
+          destroyMethod.invoke(bean);
+      }
+  }
+  ```
+
+- 在DefalutSingletonBeanResistry中增加一个管理由销毁方法的bean的功能，在ConfigurableBeanFactory类中添加destroySingletons方法DefalutSingletonBeanResistry类中实现，同时DefalutSingletonBeanResistry类中添加registerDisposableBean
+
+- 在AbstractAutowireCapableBeanFactroy中实现的创建bean的方法中注册有销毁方法的bean
+
+  ```java
+  protected Object doCreateBean(String beanName, BeanDefinition beanDefinition) {
+  	Object bean = null;
+  	try {
+  		bean = createBeanInstance(beanDefinition);
+  		//为bean填充属性
+  		applyPropertyValues(beanName, bean, beanDefinition);
+  		//执行bean的初始化方法和BeanPostProcessor的前置和后置处理方法
+  		initializeBean(beanName, bean, beanDefinition);
+  	} catch (Exception e) {
+  		throw new BeansException("Instantiation of bean failed", e);
+  	}
+  
+  	//注册有销毁方法的bean
+  	registerDisposableBeanIfNecessary(beanName, bean, beanDefinition);
+  
+  	addSingleton(beanName, bean);
+  	return bean;
+  }
+  
+  protected void registerDisposableBeanIfNecessary(String beanName, Object bean, BeanDefinition beanDefinition) {
+     if (bean instanceof DisposableBean || StrUtil.isNotEmpty(beanDefinition.getDestroyMethodName())) {
+        registerDisposableBean(beanName, new DisposableBeanAdapter(bean, beanName, beanDefinition));
+     }
+  }
+  ```
+
+- 因为bean的销毁时容器进行执行的，所以在AbstractApplication中添加close方法和registerShutdownHook（非web应用需要手动调用该方法）方法，用于销毁bean
+
+  
+
+
+
+第二种方法：
+
+配置初始化方法：
+
+- 定义一个InitializingBean接口，有一个afterPropertiesSet方法（初始化方法）
+
+- bean实现InitializingBean接口，并且重写afterPropertiesSet方法，在函数体中执行初始化逻辑
+
+- 在补全AbstractAutowireCapableBeanFactory中前面留下的invokeInitMethods方法部分，判断该bean是否可以转换为InitializingBean，如果可以则强转为InitializingBean类后执行初始化方法
+
+  ```java
+  private void invokeInitMethods(Object bean, String beanName, BeanDefinition beanDefinition) throws Exception {
+      // 1、实现了InitializingBean的方法(第二种初始化方式)
+      if (bean instanceof InitializingBean) {
+          ((InitializingBean) bean).afterPropertiesSet();
+      }
+      // 2、在xml中配置了初始化的方法(第一种初始化方式)
+      String initMethodName = beanDefinition.getInitMethodName();
+      if (StrUtil.isNotEmpty(initMethodName)) {
+          Method initMethod = ClassUtil.getPublicMethod(beanDefinition.getBeanClass(),
+                  initMethodName);
+          if (initMethod == null)
+              throw new BeansException("Could not find an init method named '" + initMethodName + "'" +
+                      " on bean with name '" + beanName + "'");
+          initMethod.invoke(bean);
+      }
+  }
+  ```
+
+配置销毁方法：
+
+接着第一种配置销毁方法继续补充
+
+- person类实现DisposableBean的destroy方法
+
+- 修改DisposableBeanAdapter类的destroy方法
+
+  ```java
+  @Override
+  public void destroy() throws Exception {
+      if (bean instanceof DisposableBean) {
+          ((DisposableBean) bean).destroy();
+      }
+      //避免同时继承自DisposableBean，且自定义方法与DisposableBean方法同名，销毁方法执行两次的情况
+      if (StrUtil.isNotEmpty(destroyMethodName) && !(bean instanceof DisposableBean && "destroy".equals(destroyMethodName))) {
+          Method destroyMethod = ClassUtil.getPublicMethod(bean.getClass(), destroyMethodName);
+          if (destroyMethod == null)
+              throw new BeansException("Couldn't find a destroy method named '" + destroyMethodName + "' on bean with name '" + beanName + "'");
+          destroyMethod.invoke(bean);
+      }
+  }
+  ```
+
+
+
+测试：
+
+```java
+public class InitAndDestroyMethodTest {
+    @Test
+    public void testInitAndDestroyMethod() throws Exception {
+        ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext(
+                "classpath:init-and-destroy-method.xml");
+        applicationContext.registerShutdownHook();  //或者手动关闭 applicationContext.close();
+    }
+}
+```

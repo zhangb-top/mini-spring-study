@@ -23,8 +23,12 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
     public static final String ID_ATTRIBUTE = "id";
     public static final String NAME_ATTRIBUTE = "name";
     public static final String CLASS_ATTRIBUTE = "class";
+    public static final String INIT_METHOD_ATTRIBUTE = "init-method";
+    public static final String DESTROY_METHOD_ATTRIBUTE = "destroy-method";
+
     public static final String VALUE_ATTRIBUTE = "value";
     public static final String REF_ATTRIBUTE = "ref";
+
 
     public XmlBeanDefinitionReader(BeanDefinitionRegistry registry) {
         super(registry);
@@ -69,6 +73,8 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
                     String id = bean.getAttribute(ID_ATTRIBUTE);
                     String name = bean.getAttribute(NAME_ATTRIBUTE);
                     String className = bean.getAttribute(CLASS_ATTRIBUTE);
+                    String initMethod = bean.getAttribute(INIT_METHOD_ATTRIBUTE);
+                    String destroyMethod = bean.getAttribute(DESTROY_METHOD_ATTRIBUTE);
 
                     // 获取bean的class对象
                     Class<?> clazz = null;
@@ -85,6 +91,10 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
 
                     // 定义beanDefinition
                     BeanDefinition beanDefinition = new BeanDefinition(clazz);
+                    // 添加bean的初始化方法
+                    beanDefinition.setInitMethodName(initMethod);
+                    // 添加bean的销毁方法
+                    beanDefinition.setDestroyMethodName(destroyMethod);
 
                     for (int j = 0; j < bean.getChildNodes().getLength(); j++) {
                         // 解析property标签

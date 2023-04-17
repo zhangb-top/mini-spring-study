@@ -6,4 +6,9 @@ import org.springframework.beans.factory.HierarchicalBeanFactory;
 public interface ConfigurableBeanFactory extends SimpletonBeanRegistry, HierarchicalBeanFactory {
     // 创建bean的前后分别加入postProcessBeforeInitialization和postProcessAfterInitialization
     void addBeanPostProcessor(BeanPostProcessor beanPostProcessor) throws BeansException;
+
+    /**
+     * 销毁单例bean
+     */
+    void destroySingletons();
 }

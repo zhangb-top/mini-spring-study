@@ -8,7 +8,7 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class AbstractBeanFactory extends DefaultSimpletonBeanRegistry implements ConfigurableBeanFactory {
+public abstract class AbstractBeanFactory extends DefaultSingletonBeanRegistry implements ConfigurableBeanFactory {
     private final List<BeanPostProcessor> beanPostProcessorList = new ArrayList<>();
 
     @Override

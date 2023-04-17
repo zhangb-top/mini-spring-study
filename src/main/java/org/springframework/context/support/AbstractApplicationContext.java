@@ -21,6 +21,9 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader i
 
         // 在bean创建前后执行 BeanPostProcessor
         registerBeanPostProcessors(beanFactory);
+
+        //提前实例化单例bean
+        beanFactory.preInstantiateSingletons();
     }
 
     protected abstract void refreshBeanFactory() throws BeansException;
@@ -40,6 +43,28 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader i
         beanPostProcessorMap.forEach((name, beanPostProcessor) -> {
             beanFactory.addBeanPostProcessor(beanPostProcessor);
         });
+    }
+
+    public void close() {
+        doClose();
+    }
+
+    public void registerShutdownHook() {
+        Thread shutdownHook = new Thread() {
+            public void run() {
+                doClose();
+            }
+        };
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
+
+    }
+
+    private void doClose() {
+        destroyBeans();
+    }
+
+    private void destroyBeans() {
+        getBeanFactory().destroySingletons();
     }
 
     @Override
