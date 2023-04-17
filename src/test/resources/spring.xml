@@ -16,4 +16,7 @@
     <bean class="org.springframework.test.ioc.common.CustomBeanFactoryPostProcessor"/>
 
     <bean class="org.springframework.test.ioc.common.CustomBeanPostProcessor"/>
+
+    <bean id="helloService" class="org.springframework.test.ioc.service.HelloService"/>
+
 </beans>

@@ -1744,3 +1744,163 @@ public class InitAndDestroyMethodTest {
 现在bean的生命周期为：
 
 ![init-and-destroy-method](./img/init-and-destroy-method.png)
+
+## Aware接口
+
+> 分支：aware-interface
+
+Aware是感知、意识的意思，Aware接口是标记性接口，其实现子类能感知容器相关的对象。常用的Aware接口有BeanFactoryAware和ApplicationContextAware，分别能让其实现者感知所属的BeanFactory和ApplicationContext。
+
+让实现BeanFactoryAware接口的类能感知所属的BeanFactory
+
+实现ApplicationContextAware的接口感知ApplicationContext，是通过BeanPostProcessor。由bean的生命周期可知，bean实例化后会经过BeanPostProcessor的前置处理和后置处理。
+
+
+
+**BeanFactoryAware：**
+
+- 定义Aware感知接口，实现该接口可以感知容器类
+
+- 定义BeanFactoryAware接口，继承Aware接口，该类含有setBeanFactory方法
+
+- 在测试类的HelloService中实现BeanFactory接口，也就是HelloService是的作用是管理感知类
+
+  ```java
+  /**
+   * 同时管理BeanFactoryAware和ApplicationContextAware
+   */
+  public class HelloService implements BeanFactoryAware, ApplicationContextAware {
+      private BeanFactory beanFactory;
+  
+      public void sayHello() {
+          System.out.println("hello spring");
+      }
+  
+      public BeanFactory getBeanFactory() {
+          return beanFactory;
+      }
+  
+      @Override
+      public void setBeanFactory(BeanFactory beanFactory) {
+          this.beanFactory = beanFactory;
+      }
+  }
+  ```
+
+- 在AbstractAutowireCapableBeanFactory的initializeBean函数中判断bean是否实现了BeanFactoryAware，实现了则该bean为感知BeanFactory的bean，为其设置BeanFactory
+
+  ```java
+  public Object initializeBean(Object bean, String beanName, BeanDefinition beanDefinition) {
+      // 添加BeanFactoryAware
+      if (bean instanceof BeanFactoryAware) {
+          ((BeanFactoryAware) bean).setBeanFactory(this);
+      }
+      // ......
+      return bean;
+  }
+  ```
+
+
+
+**ApplicationContextAware：**
+
+- 定义ApplicationContextAware接口，继承Aware接口，该类含有setApplicationContext方法
+
+- HelloService类实现ApplicationContextAware接口，重写setApplicationContext方法
+
+  ```java
+  /**
+   * 同时管理BeanFactoryAware和ApplicationContextAware
+   */
+  public class HelloService implements BeanFactoryAware, ApplicationContextAware {
+      private BeanFactory beanFactory;
+      private ApplicationContext applicationContext;
+  
+      public void sayHello() {
+          System.out.println("hello spring");
+      }
+  
+      public BeanFactory getBeanFactory() {
+          return beanFactory;
+      }
+  
+      @Override
+      public void setBeanFactory(BeanFactory beanFactory) {
+          this.beanFactory = beanFactory;
+      }
+  
+      public ApplicationContext getApplicationContext() {
+          return applicationContext;
+      }
+  
+      @Override
+      public void setApplicationContext(ApplicationContext applicationContext) {
+          this.applicationContext = applicationContext;
+      }
+  }
+  ```
+
+- 创建ApplicationContextAwareProcessor类，通过BeanPostProcessor来实现感知类中设置ApplicationContext，所以要继承BeanPostProcessor
+
+  ```java
+  public class ApplicationContextAwareProcessor implements BeanPostProcessor {
+      private final ApplicationContext applicationContext;
+  
+      public ApplicationContextAwareProcessor(ApplicationContext applicationContext) {
+          this.applicationContext = applicationContext;
+      }
+  
+      @Override
+      public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+          if (bean instanceof ApplicationContextAware) {
+              ((ApplicationContextAware) bean).setApplicationContext(applicationContext);
+          }
+          return bean;
+      }
+  
+      @Override
+      public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+          return bean;
+      }
+  }
+  ```
+
+- 在AbstractApplicationContext类的refresh函数获取BeanFactory后，设置ApplicationContext
+
+  ```java
+  @Override
+  public void refresh() throws BeansException {
+      // 创建beanFactory，并加载bean
+      refreshBeanFactory();
+      ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+  
+      //添加ApplicationContextAwareProcessor，让继承自ApplicationContextAware的bean能感知bean
+      beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
+  
+      // 在bean创建前执行 BeanFactoryPostProcessor
+      invokeBeanFactoryPostProcessors(beanFactory);
+  
+      // 在bean创建前后执行 BeanPostProcessor
+      registerBeanPostProcessors(beanFactory);
+  
+      //提前实例化单例bean
+      beanFactory.preInstantiateSingletons();
+  }
+  ```
+
+
+
+测试：
+
+```java
+public class AwareInterfaceTest {
+    @Test
+    public void test() throws Exception {
+        ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext(
+            "classpath:spring.xml");
+        HelloService helloService = applicationContext.getBean("helloService", HelloService.class);
+        assertThat(helloService.getApplicationContext()).isNotNull();
+        assertThat(helloService.getBeanFactory()).isNotNull();
+    }
+}
+```
