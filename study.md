@@ -1706,7 +1706,7 @@ BeanFactory是spring的基础设施，面向spring本身；而ApplicationContext
 
 接着第一种配置销毁方法继续补充
 
-- person类实现DisposableBean的destroy方法
+- bean实现DisposableBean的destroy方法
 
 - 修改DisposableBeanAdapter类的destroy方法
 
@@ -1740,3 +1740,7 @@ public class InitAndDestroyMethodTest {
     }
 }
 ```
+
+现在bean的生命周期为：
+
+![init-and-destroy-method](./img/init-and-destroy-method.png)
