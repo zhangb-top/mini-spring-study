@@ -64,8 +64,10 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
             throw new BeansException("Instantiation of bean failed", e);
         }
 
-        // 添加至单例bean
-        addSimpleton(beanName, bean);
+        // 添加至单例bean，判断scope类型
+        if (beanDefinition.isSingleton())
+            addSimpleton(beanName, bean);
+
         return bean;
     }
 
@@ -100,8 +102,10 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 
     private void registerDisposableBeanIfNecessary(String beanName, Object bean,
                                                    BeanDefinition beanDefinition) {
-        if (bean instanceof DisposableBean || StrUtil.isNotEmpty(beanDefinition.getDestroyMethodName()))
-            registerDisposableBean(beanName, new DisposableBeanAdapter(bean, beanName, beanDefinition));
+        if (beanDefinition.isSingleton())
+            if (bean instanceof DisposableBean || StrUtil.isNotEmpty(beanDefinition.getDestroyMethodName()))
+                registerDisposableBean(beanName, new DisposableBeanAdapter(bean, beanName,
+                        beanDefinition));
     }
 
     // 执行BeanPostProcessor的前置操作
